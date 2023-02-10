@@ -1,33 +1,85 @@
-import { useState } from 'react'
+import { useRef } from 'react'
+
 
 function HomePage() {
-  const [inputQuery, setInputQuery] = useState('')
-  const [outputQuery, setOutputQuery] = useState('')
+  const ko = "ko"
+  const en = "en"
+
+  const inputRef = useRef()
+  const outputRef = useRef()
+  const gptInputRef = useRef()
+  const gptOutputRef = useRef()
+  function handleRef(ref, input) {
+    ref.current.value = input
+  }
+
+  let inputQuery, outputQuery, gptInputQuery, gptOutputQuery
+  function setInit() {
+    inputQuery = ''
+    outputQuery = ''
+    gptInputQuery = ''
+    gptOutputQuery = ''
+  }
 
   function handleChange(event) {
-    setInputQuery(event.target.value)
+    inputQuery = event.target.value
+    handleRef(inputRef, inputQuery)
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-
-    console.log(inputQuery)
+    let str
 
     // 입력이 있을 경우
     if (inputQuery != "") {
-      const res = await fetch('/api/papago_api', {
-        method: 'POST',
-        body: JSON.stringify(inputQuery)
-      })
+      outputQuery = await papago(inputQuery, ko, en) // ko -> en
+      handleRef(outputRef, outputQuery)
 
-      if (res.ok) { // res가 정상적일 경우
-        const tmp = await res.json()
-        setOutputQuery(tmp.data.replace(/\"/gi, ""))
-      }
-      else {        // res가 비정상적일 경우
-        console.log('Error: ' + res.status)
-      }
+      gptInputQuery = await chatGPT(outputQuery)
+      handleRef(gptInputRef, gptInputQuery)
+
+      gptOutputQuery = await papago(gptInputQuery, en, ko) // en -> ko
+      handleRef(gptOutputRef, gptOutputQuery)
+
+      setInit()
     }
+  }
+
+  async function papago(input, src, trg) {
+    if (input == '') return;
+
+    const res = await fetch('/api/papago_api', {
+      method: 'POST',
+      body: JSON.stringify({
+        input: input,
+        source: src,
+        target: trg
+      })
+    })
+
+    if (res.ok) { // res가 정상적일 경우
+      const result = await res.json()
+      const str = result.data.replace(/\"/gi, "")
+      return str
+    }
+    // res가 비정상적일 경우
+    else console.log('Error: ' + res.status)
+  }
+
+  async function chatGPT(input) {
+    if (input == '') return;
+
+    const res = await fetch('/api/GPT3_api', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    })
+
+    if (res.ok) {
+      const result = await res.json()
+      const str = result.data.replace(/\n/g, "")
+      return str
+    }
+    else console.log('Error: ' + res.status)
   }
 
   return (
@@ -38,10 +90,11 @@ function HomePage() {
           <textarea
             id="inputField"
             type='text'
-            value={inputQuery}
+            ref={inputRef}
 
-            rows='5'
-            maxLength="100"
+            rows='10'
+            cols='100'
+            maxLength="5000"
 
             onChange={handleChange} />
           <br />
@@ -50,14 +103,43 @@ function HomePage() {
       </div>
       <br />
       <div>
-        <h1>result</h1>
+        <h1>result_1 papago translation</h1>
         <textarea
           id="outputField"
           type='text'
-          defaultValue={outputQuery}
+          ref={outputRef}
 
-          rows='5'
-          maxLength="100"
+          rows='10'
+          cols='100'
+          maxLength="5000"
+
+          readOnly />
+      </div>
+      <br />
+      <div>
+        <h1>result_2 chatGPT response</h1>
+        <textarea
+          id="gptInputField"
+          type='text'
+          ref={gptInputRef}
+
+          rows='10'
+          cols='100'
+          maxLength="5000"
+
+          readOnly />
+      </div>
+      <br />
+      <div>
+        <h1>result_3 response translation</h1>
+        <textarea
+          id="gptOutputField"
+          type='text'
+          ref={gptOutputRef}
+
+          rows='10'
+          cols='100'
+          maxLength="5000"
 
           readOnly />
       </div>
